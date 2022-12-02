@@ -1,0 +1,133 @@
+#!/bin/bash
+
+path=$(dirname "$0")
+if [ "$#" -eq 0 ];then
+echo "No arguments provided"
+
+elif [ "$1" == "start" ];then
+clear
+
+function cleanup() {
+    tput cnorm
+}
+
+trap cleanup EXIT
+tput civis
+viu ./logo.png
+sleep 2
+clear
+tput cnorm
+temp="true"
+while $temp
+do
+	echo -ne "odc $ "
+	read info
+	if [ "$info" == "exit" ];then
+		temp="false"
+	elif [ "$info" == "clear" ];then
+		clear
+	else
+		./odc $info
+	fi	
+done
+elif [ "$1" == "help" ];then
+python "$path"/services/help.py
+
+elif [ "$1" == "observe" ];then
+var=$(realpath "$2")
+python "$path"/services/observe.py "$var"
+
+elif [ "$1" == "config" ];then
+if [ "$#" -eq 1 ];then
+python "$path"/services/config.py
+else
+python "$path"/services/config_edit.py
+fi
+
+elif [ "$1" == "view" ];then
+python "$path"/services/access.py
+elif [ "$1" == "uploadfile" ];then
+filename="$2"
+filename=$(echo "$filename" | sed -r 's/ /\\ /g')
+python "$path"/services/uploads.py "$filename" "$3"
+elif [ "$1" == "uploaddir" ];then
+#li=$(find $2 -type f)
+
+
+
+
+IFS='/' read -ra ADDR <<< "$2"
+count=${#ADDR[@]}
+
+IFS=$'\n'
+for var in $(find "$2" -type f)
+do
+  fpath2=$(echo "$var" |  cut -d'/' -f"$count"- )  #this also contains the file name
+  fpath2=$(dirname $( echo "$fpath2"))  #only the path name with 
+
+    filepath=$(dirname $( echo "$var"))
+    filename=$(echo "$var" | sed "s/.*\///")
+    #filename=$(echo "$filename" | sed -r 's/ /\\ /g')
+    slash="/"
+    echo "$filename" "$fpath2$slash"
+    python "$path"/services/uploads.py "$filepath$slash$filename" "$fpath2$slash"
+done
+
+# IFS=$'\n'
+# for var in $(find "$2" -type f)
+# do
+#     #var=$(echo "$var" | cut -d'/' -f2- ) # gives the whole path without ./
+
+#  #	filepath=$(dirname $( echo "$var" | cut -d'/' -f2- ))  # gives only the whole directory path without ./
+#   # 	filename=$(basename $(echo "$var" | cut -d'/' -f2- ))   # gives the file name
+#     filepath=$(dirname $( echo "$var"))
+#     filename=$(echo "$var" | sed "s/.*\///")
+#    	#filename=$(echo "$filename" | sed -r 's/ /\\ /g')
+#     slash="/"
+#   	python "$path"/services/uploads.py "$filepath$slash$filename" "$filepath$slash"
+#     done
+
+elif [ "$1" == "delete" ];then
+python "$path"/services/delete.py "$2"
+elif [ "$1" == "download" ];then
+python "$path"/services/download.py "$2"
+elif [ "$1" == "set_url" ];then
+python "$path"/services/set_url.py "$2"
+elif [ "$1" == "signup" ];then
+python "$path"/services/signup.py
+elif [ "$1" == "version" ];then
+	echo "odc version: 1.0.0"
+elif [ "$1" == "server" ];then
+	python "$path"/services/server.py
+
+elif [ "$1" == "container" ];then
+
+if [ "$2" == "run" ];then
+	python "$path"/services/getruntime.py "run" "$3" "$4"
+elif [ "$2" == "stop" ];then
+	python "$path"/services/stoporremoveruntimes.py "stop" "$3"
+elif [ "$2" == "remove" ];then
+	python "$path"/services/stoporremoveruntimes.py "remove" "$3"
+elif [ "$2" == "resume" ];then
+	python "$path"/services/getruntime.py "resume" "$3" "$4"
+elif [ "$2" == "list" ];then
+	python "$path"/services/docker_list.py "$3"
+fi
+
+elif [ "$1" == "deploy" ];then
+
+if [ "$2" == "website" ];then
+	python "$path"/services/deploy_website.py "$3"
+elif [ "2" == "django" ];then 
+	python "$path"/services/deploy_django.py "$3"
+elif [ "$2" == "nodejs" ];then 
+	python "$path"/services/deploy_nodejs.py "$3"
+fi
+
+elif [ "$1" == "rename" ];then
+	python "$path"/services/deploy_rename.py "$3" "$4"
+
+else
+	echo "Invalid arguments, use 'help'  for more details"
+fi
+
