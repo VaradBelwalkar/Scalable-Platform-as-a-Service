@@ -1,11 +1,11 @@
 # odc 
 
-**********PLATFORM AS A SERVICE**********
+**********PLATFORM AS A SERVICE**********\
 WHAT IT CAN DO?\
-Provide on-demand containers to the client 
-One command deployment for various applications(web, django-based, nodejs-based)
-One command to replicate the application to perform load-balancing
-Storage options to store documents, folders etc.
+Provide on-demand containers to the client\
+One command deployment for various applications(web, django-based, nodejs-based)\
+One command to replicate the application to perform load-balancing\
+Storage options to store documents, folders etc.\
 ***********Prerequisites***********
  You must have docker-engine installed and the user added to docker group, if not do following
  
