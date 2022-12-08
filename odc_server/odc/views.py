@@ -267,7 +267,7 @@ def stop_or_remove_containers(request,stop_or_remove,containerName):
   
   
 
-def deploy__app_or_website(request,app_or_website,clientusername):
+def deploy_app_or_website(request,app_or_website,clientusername):
     htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a><a href="websiteinfo">{}</a></div></body></html>"""
     projectPath = pathlib.Path(__file__).parent.parent.resolve()
@@ -313,7 +313,7 @@ def deploy__app_or_website(request,app_or_website,clientusername):
         return HttpResponse(htmlResponse.format(portChoice,privateKey,msg))
 
 
-def rename_app_or_website(request,oldwebsitename,newwebsitename):
+def rename_website(request,oldwebsitename,newwebsitename):
     htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(oldwebsitename),"{}_{}".format(user,newwebsitename)])
     return HttpResponse(htmlInfo.format("website renamed successfully!\nNow you can access the website by typing:\n\t\t{}\tin browser\n".format(newwebsitename)))

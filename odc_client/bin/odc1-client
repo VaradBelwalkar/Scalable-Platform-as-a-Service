@@ -4,5 +4,5 @@ SCRIPTPATH=$(dirname "$SCRIPT")
 cd "$SCRIPTPATH"
 cd ..
 source ./bin/activate
-cd ./bin
-./odc start
+#cd ./bin
+./bin/odc start

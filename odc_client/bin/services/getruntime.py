@@ -42,6 +42,7 @@ client = requests.session()
 try:
     print("connecting to server ...", end="      ")
     client.get(url)
+    print(client)
     print("done")
 except requests.ConnectionError as e:
     print(red+"The following error occured connecting to the server: {}\n Please try again".format(e)+end_c)
@@ -89,7 +90,6 @@ try:
     try:
         subprocess.run(["{}/bin/services/connectToRemoteContainer.sh".format(projectPath),"{}".format(projectPath),"{}".format(sshPortNo),"{}".format(data['ipAddr']),"1","{}".format(sys.argv[3])])
     except IndexError:
-        print("PYTHON DIDN'T TOOK ARG 4!!!!!!!!")
         subprocess.run(["{}/bin/services/connectToRemoteContainer.sh".format(projectPath),"{}".format(projectPath),"{}".format(sshPortNo),"{}".format(data['ipAddr']),"0"])
 
 except requests.exceptions.HTTPError as e:

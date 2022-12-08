@@ -13,8 +13,9 @@ function cleanup() {
 
 trap cleanup EXIT
 tput civis
-viu ./logo.png
-sleep 2
+clear
+cat $path/logo.txt
+sleep 2 
 clear
 tput cnorm
 temp="true"
@@ -27,7 +28,7 @@ do
 	elif [ "$info" == "clear" ];then
 		clear
 	else
-		./odc $info
+		$path/odc $info
 	fi	
 done
 elif [ "$1" == "help" ];then
