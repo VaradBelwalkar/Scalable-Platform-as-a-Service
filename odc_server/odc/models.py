@@ -41,3 +41,7 @@ class runtimeDetails(models.Model):
     #the name is like <username>_<port_number_assigned> sending this info to client so that user can point specific container allocated
     ownedContainers = models.CharField(max_length=65535, blank=True)
     totalOwnedContainers = models.IntegerField(blank=False,default=0)
+
+class wargame_details(models.Model):
+    username = models.CharField(max_length=255, blank=True)
+    owned_wargame_runtime_port = models.CharField(max_length=10, blank=True)

@@ -22,7 +22,9 @@ import socket
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
-
+from unix import Local, Remote, UnixError
+from unix.linux import Linux
+import kvm
 #Function to generate key pairs
 def generate_keys():
     key = rsa.generate_private_key(
@@ -42,6 +44,15 @@ def generate_keys():
         crypto_serialization.PublicFormat.OpenSSH
     )
     return {private_key,public_key}
+
+#Code block to recover from power failure
+#loops through every users' profile and updates the status of the containers assigned to them
+for user in runtimeDetails.objects.get():
+    containerListInDict = json.loads(containerUser.ownedContainers)
+    for key in containerListInDict
+     containerListInDict[key] = "stopped"
+
+
 
 def home(request):
     user = request.user
@@ -111,7 +122,7 @@ def deadlocksetfalse(request):
 
 
 def deadlocksettrue(request):
-    user = request.user
+    user = request.user 
     if user.is_authenticated :
         Details.objects.filter(username=request.user.username).update(in_sync=True)
         return redirect('home')
@@ -164,8 +175,11 @@ def run_containers(request,requestedImage):
     else:
         client = docker.from_env()
         {privateKey,publicKey} = generate_keys()
-        #Blocking subprocess
-        client.containers.run(image=requestedImage,name=user,ports={'22/tcp': None})
+        try:
+            client.containers.run(image=requestedImage,name=user,ports={'22/tcp': None})
+        except docker.errors.ImageNotFound:
+            return HttpResponse(htmlInfo.format("Such image doesn't exist yet !"))
+        
         containerObj = client.containers.get(user)
         containerObj.exec_run(cmd="echo {} > /home/user/.ssh/authorized_keys".format(publicKey))
         portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
@@ -194,7 +208,10 @@ def start_containers(request,containerName):
             return HttpResponse(htmlInfo.format("You haven't run any containers yet. Try one by using \"run <runtime_name>\" command"))    
         containerUser = runtimeDetails.objects.get(username = user)
         if (containerUser.totalOwnedContainers >0):
-            containerObj = client.containers.get(containerName)
+            try:
+                containerObj = client.containers.get(containerName)
+            except docker.errors.NotFound:
+                return HttpResponse(htmlInfo.format("Container doesn't exist !"))
             containerListInDict = json.loads(containerUser.ownedContainers)
             if(containerListInDict[containerName] == "stopped"):                
                 containerObj.start()
@@ -245,8 +262,11 @@ def stop_or_remove_containers(request,stop_or_remove,containerName):
         check = runtimeDetails.objects.filter(username=user).exists()
         if (check):
             containerUser = runtimeDetails.objects.get(username = user)
-            if (containerUser.totalOwnedContainers > 0):
-                containerObj = client.containers.get(containerName)
+            if (containerUser.totalOwnedContainers > 0):  
+                try :  
+                    containerObj = client.containers.get(containerName)
+                except docker.errors.NotFound:
+                    return HttpResponse(htmlInfo.format("Container doesn't exist !"))
                 containerListInDict = json.loads(containerUser.ownedContainers)
                 if (stop_or_remove == "stop"):
                     if(containerListInDict[containerName] == "stopped"):
@@ -291,11 +311,10 @@ def deploy_app_or_website(request,app_or_website,clientusername):
         return HttpResponse(htmlInfo.format("Sorry! Currently we cannot allocate more than 5 container runtimes to single user ! Try removing the unnecessary container to start a new one"))
     else:
         client = docker.from_env()
-        client.containers.run(image=app_or_website)
-        subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(user),"{}".format(app_or_website),"1","1",clientusername])
+        {privateKey,publicKey} = generate_keys()
+        client.containers.run(image=app_or_website,name="{}_{}".format(user,app_or_website),ports={'22/tcp': None},command=["useradd -m {}".format(clientusername),"echo {} > /home/{}}/.ssh/authorized_keys".format(publicKey,clientusername)])
         containerObj = client.containers.get(user)
         portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
-        subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(user),"{}_{}".format(user,app_or_website)])
         containerListInDict = json.loads(containerUser.ownedContainers)
         containerListInDict["{}_{}".format(user,portChoice)] = "running"
         containerUser.ownedContainers = json.dumps(containerListInDict)
@@ -315,33 +334,45 @@ def rename_website(request,oldwebsitename,newwebsitename):
 
 
 
-def get_level(request,requestedLevel):
-        htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
-    htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a></div></body></html>"""
+def wargame_runtime(request):
+    htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     projectPath = pathlib.Path(__file__).parent.parent.resolve()
-    containerUser={}
+    wargame_volunteer={}
     if not request.user.is_authenticated:        
-         return HttpResponse(htmlInfo.format("Authentication failed !"))            
+         return1 HttpResponse(htmlInfo.format("Authentication failed !"))            
 
     user = request.user.username
-    check = runtimeDetails.objects.filter(username=user).exists()
+    check = wargame_details.objects.filter(username=user).exists()
     if not check:
-        containerUser = runtimeDetails(username = user ,ownedContainers = "{}",totalOwnedContainers = 0)
-        containerUser.save()
+        wargame_volunteer = wargame_details(username = user)
+        wargame_volunteer.save()
     else:
-        containerUser = runtimeDetails.objects.get(username = user)
- 
-    if(containerUser.totalOwnedContainers >= 5):
-        return HttpResponse(htmlInfo.format("Sorry! Currently we cannot allocate more than 5 container runtimes to single user ! Try removing the unnecessary container to start a new one"))
-    else:
-        client = docker.from_env()
-        subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(user),"{}".format(requestedImage),"1","0"])
+        wargame_volunteer = wargame_details.objects.get(username = user)
+    client = docker.from_env()
+    try:
         containerObj = client.containers.get(user)
+        if(containerObj.status == 'exited'):  
+            containerObj.start()   
+            #Reloading
+            containerObj = client.containers.get(user)
+            portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
+            wargame_volunteer.owned_wargame_runtime_port = "{}".format(portChoice)
+            wargame_volunteer.save()
+            return HttpResponse(htmlInfo.format(portChoice))
+        else:
+            wargame_volunteer = wargame_details.objects.get(username = user)
+            return HttpResponse(htmlInfo.format(wargame_volunteer.owned_wargame_runtime_port))
+
+
+    except docker.errors.NotFound :    
+        client.containers.run(image=requestedImage,name=user,ports={'22/tcp': None})
+        containerObj = client.containers.get(user)        
         portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
-        subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(user),"{}_{}".format(user,portChoice)])
-        containerListInDict = json.loads(containerUser.ownedContainers)
-        containerListInDict["{}_{}".format(user,portChoice)] = "running"
-        containerUser.ownedContainers = json.dumps(containerListInDict)
-        containerUser.totalOwnedContainers += 1
-        containerUser.save()
-        return HttpResponse(htmlResponse.format(portChoice,privateKey))
+        wargame_volunteer.owned_wargame_runtime_port = "{}".format(portChoice)
+        wargame_volunteer.save()
+        return HttpResponse(htmlInfo.format(portChoice))
+
+
+
+
+#KVM virtualization support to be added 
