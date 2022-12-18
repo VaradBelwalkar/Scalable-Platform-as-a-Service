@@ -19,6 +19,29 @@ import pathlib
 import json
 import time
 import socket
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend as crypto_default_backend
+
+#Function to generate key pairs
+def generate_keys():
+    key = rsa.generate_private_key(
+        backend=crypto_default_backend(),
+        public_exponent=65537,
+        key_size=2048
+    )
+
+    private_key = key.private_bytes(
+        crypto_serialization.Encoding.PEM,
+        crypto_serialization.PrivateFormat.PKCS8,
+        crypto_serialization.NoEncryption()
+    )
+
+    public_key = key.public_key().public_bytes(
+        crypto_serialization.Encoding.OpenSSH,
+        crypto_serialization.PublicFormat.OpenSSH
+    )
+    return {private_key,public_key}
 
 def home(request):
     user = request.user
@@ -120,14 +143,10 @@ def upload_folder(request):
 
 #view to get a new container access for a specific image
 def run_containers(request,requestedImage):
+    #response formats to send
     htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a></div></body></html>"""
     projectPath = pathlib.Path(__file__).parent.parent.resolve()
-    try:
-       os.remove('{}/id_rsa'.format(projectPath)) 
-       os.remove('{}/id_rsa.pub'.format(projectPath))
-    except IOError:
-        pass
     containerUser={}
     if not request.user.is_authenticated:        
          return HttpResponse(htmlInfo.format("Authentication failed !"))            
@@ -144,35 +163,26 @@ def run_containers(request,requestedImage):
         return HttpResponse(htmlInfo.format("Sorry! Currently we cannot allocate more than 5 container runtimes to single user ! Try removing the unnecessary container to start a new one"))
     else:
         client = docker.from_env()
-        subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(user),"{}".format(requestedImage),"1","0"])
+        {privateKey,publicKey} = generate_keys()
+        #Blocking subprocess
+        client.containers.run(image=requestedImage,name=user,ports={'22/tcp': None})
         containerObj = client.containers.get(user)
+        containerObj.exec_run(cmd="echo {} > /home/user/.ssh/authorized_keys".format(publicKey))
         portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
-        subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(user),"{}_{}".format(user,portChoice)])
+        containerObj.rename("{}_{}".format(user,portChoice))
         containerListInDict = json.loads(containerUser.ownedContainers)
         containerListInDict["{}_{}".format(user,portChoice)] = "running"
         containerUser.ownedContainers = json.dumps(containerListInDict)
         containerUser.totalOwnedContainers += 1
         containerUser.save()
-
-        fp=open("{}/id_rsa".format(projectPath),'r')
-        privateKey=fp.read()
-        fp.close()
-        os.remove('{}/id_rsa'.format(projectPath))
-        os.remove('{}/id_rsa.pub'.format(projectPath))
-
         return HttpResponse(htmlResponse.format(portChoice,privateKey))
 
 
-
+#Start(resume) the containers if already there
 def start_containers(request,containerName):
         htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
         htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a></div></body></html>"""
         projectPath = pathlib.Path(__file__).parent.parent.resolve()
-        try:
-           os.remove('{}/id_rsa'.format(projectPath)) 
-           os.remove('{}/id_rsa.pub'.format(projectPath))
-        except IOError:
-           pass
         containerUser={}
         client = docker.from_env()
         if not request.user.is_authenticated:        
@@ -190,24 +200,19 @@ def start_containers(request,containerName):
                 containerObj.start()
                 del containerListInDict[containerName]
             containerObj.exec_run(cmd="rm /home/user/.ssh/authorized_keys")
-            subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(containerName),"{}".format("dummy_value"),"0","0"])
-            fp=open("{}/id_rsa".format(projectPath),'r')
-            privateKey=fp.read()
-            fp.close()
+            {privateKey,publicKey} = generate_keys()
+            containerObj.exec_run(cmd="echo {} > /home/user/.ssh/authorized_keys".format(publicKey))
+            #Purposefully reassigned to get updated port configurations 
             containerObj = client.containers.get(containerName)
             portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
-            subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(containerName),"{}_{}".format(user,portChoice),"0"])
-            
+            containerObj.rename("{}_{}".format(user,portChoice))            
             containerListInDict["{}_{}".format(user,portChoice)] = "running"
             containerUser.ownedContainers =json.dumps(containerListInDict)
             containerUser.save()
-            os.remove("{}/id_rsa".format(projectPath))
-            os.remove("{}/id_rsa.pub".format(projectPath))
-
             return HttpResponse(htmlResponse.format(portChoice,privateKey))
         else:
             return HttpResponse(htmlInfo.format("You don't have any running containers currently !"))
-
+#List the containers or images (user specific)
 def docker_list(request,list_what):
         htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
         htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a></div></body></html>"""
@@ -216,8 +221,7 @@ def docker_list(request,list_what):
         client = docker.from_env()
         if not request.user.is_authenticated:        
              return HttpResponse(htmlInfo.format("Authentication failed !")) 
-        if(list_what == "images"):
-            
+        if(list_what == "images"):            
             return HttpResponse(htmlInfo.format("ubuntu\nbase_ubuntu\ndevelopment_server\nnginx\nalpine"))
         user = request.user.username
         check = runtimeDetails.objects.filter(username=user).exists()
@@ -266,16 +270,11 @@ def stop_or_remove_containers(request,stop_or_remove,containerName):
      
   
   
-
+#Deploy apps
 def deploy_app_or_website(request,app_or_website,clientusername):
     htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a><a href="websiteinfo">{}</a></div></body></html>"""
     projectPath = pathlib.Path(__file__).parent.parent.resolve()
-    try:
-       os.remove('{}/id_rsa'.format(projectPath)) 
-       os.remove('{}/id_rsa.pub'.format(projectPath))
-    except IOError:
-        pass
     containerUser={}
     if not request.user.is_authenticated:        
          return HttpResponse(htmlInfo.format("Authentication failed !"))            
@@ -292,6 +291,7 @@ def deploy_app_or_website(request,app_or_website,clientusername):
         return HttpResponse(htmlInfo.format("Sorry! Currently we cannot allocate more than 5 container runtimes to single user ! Try removing the unnecessary container to start a new one"))
     else:
         client = docker.from_env()
+        client.containers.run(image=app_or_website)
         subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(user),"{}".format(app_or_website),"1","1",clientusername])
         containerObj = client.containers.get(user)
         portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
@@ -301,12 +301,6 @@ def deploy_app_or_website(request,app_or_website,clientusername):
         containerUser.ownedContainers = json.dumps(containerListInDict)
         containerUser.totalOwnedContainers += 1
         containerUser.save()
-
-        fp=open("{}/id_rsa".format(projectPath),'r')
-        privateKey=fp.read()
-        fp.close()
-        os.remove('{}/id_rsa'.format(projectPath))
-        os.remove('{}/id_rsa.pub'.format(projectPath))
         hostname = socket.gethostname()
         IPAddr = socket.gethostbyname(hostname)
         msg = "\t\t\t\tCongratulations!\nYou have deployed your website\nYou can access it by typing following in browser:\n\t\t\t\t{}:{}\n\nIf you want to name the website, run following command :\n\t\twebsite <website-name> <new-name>\n Then you can access the website using http://<new-name>\n\n".format(IPAddr,portChoice)
@@ -317,3 +311,37 @@ def rename_website(request,oldwebsitename,newwebsitename):
     htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
     subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(oldwebsitename),"{}_{}".format(user,newwebsitename)])
     return HttpResponse(htmlInfo.format("website renamed successfully!\nNow you can access the website by typing:\n\t\t{}\tin browser\n".format(newwebsitename)))
+
+
+
+
+def get_level(request,requestedLevel):
+        htmlInfo = """<html><head></head><body><div><a href="info">{}</a></div></body></html>"""
+    htmlResponse =  """<html><head></head><body><div><a href="port">{}</a><a href="privatekey">{}</a></div></body></html>"""
+    projectPath = pathlib.Path(__file__).parent.parent.resolve()
+    containerUser={}
+    if not request.user.is_authenticated:        
+         return HttpResponse(htmlInfo.format("Authentication failed !"))            
+
+    user = request.user.username
+    check = runtimeDetails.objects.filter(username=user).exists()
+    if not check:
+        containerUser = runtimeDetails(username = user ,ownedContainers = "{}",totalOwnedContainers = 0)
+        containerUser.save()
+    else:
+        containerUser = runtimeDetails.objects.get(username = user)
+ 
+    if(containerUser.totalOwnedContainers >= 5):
+        return HttpResponse(htmlInfo.format("Sorry! Currently we cannot allocate more than 5 container runtimes to single user ! Try removing the unnecessary container to start a new one"))
+    else:
+        client = docker.from_env()
+        subprocess.run(["{}/odc/runtime.sh".format(projectPath),"{}".format(user),"{}".format(requestedImage),"1","0"])
+        containerObj = client.containers.get(user)
+        portChoice = containerObj.attrs['NetworkSettings']['Ports']['22/tcp'][0]['HostPort']
+        subprocess.run(["{}/odc/updateName.sh".format(projectPath),"{}".format(user),"{}_{}".format(user,portChoice)])
+        containerListInDict = json.loads(containerUser.ownedContainers)
+        containerListInDict["{}_{}".format(user,portChoice)] = "running"
+        containerUser.ownedContainers = json.dumps(containerListInDict)
+        containerUser.totalOwnedContainers += 1
+        containerUser.save()
+        return HttpResponse(htmlResponse.format(portChoice,privateKey))
