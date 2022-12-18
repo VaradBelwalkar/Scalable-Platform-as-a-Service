@@ -6,7 +6,7 @@ from django.views import generic
 from django.http import HttpResponse
 from .forms import DocumentForm
 from .forms import DocumentfolderForm
-from .models import Document
+from .models import document
 from .models import Details
 from .models import runtimeDetails
 import hashlib
@@ -57,7 +57,7 @@ for user in runtimeDetails.objects.get():
 def home(request):
     user = request.user
     if user.is_authenticated:
-        documents = Document.objects.filter(username=request.user.username)
+        documents = document.objects.filter(username=request.user.username)
         check = Details.objects.filter(username=request.user.username).exists()
         if not check:
             p = Details(username=user)
@@ -87,10 +87,10 @@ def upload_file(request):
             for block in iter(lambda: doc.read(blocksize), b""):
                 hashf.update(block)
             md5sum = str(hashf.hexdigest())
-            check = Document.objects.filter(username=request.user.username, name=na, filepath=filepath).exists()
+            check = document.objects.filter(username=request.user.username, name=na, filepath=filepath).exists()
             if check:
-                Document.objects.filter(username=request.user.username, name=na, filepath=filepath).delete()
-            p = Document(name=na, filepath=filepath, document=doc, username=username, md5sum=md5sum)
+                document.objects.filter(username=request.user.username, name=na, filepath=filepath).delete()
+            p = document(name=na, filepath=filepath, document=doc, username=username, md5sum=md5sum)
             p.save()
         return redirect('home')
     else:
@@ -107,7 +107,7 @@ def upload_file(request):
 def delete(request, id):
     user = request.user
     if user.is_authenticated:
-        Document.objects.filter(username=request.user.username, id=id).delete()
+        document.objects.filter(username=request.user.username, id=id).delete()
         return redirect('home')
     else:
         return redirect('login')
@@ -138,7 +138,7 @@ def upload_folder(request):
         username = request.user
         for doc in files:
             na=doc.name
-            p = Document(name=na, filepath=filepath, document=doc, username=username)
+            p = document(name=na, filepath=filepath, document=doc, username=username)
             p.save()
         return redirect('home')
     else:

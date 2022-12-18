@@ -1,19 +1,18 @@
 
 
-# Create your models here.
+# Create your fields here.
 from __future__ import unicode_literals
-from django.db import models
 from db_file_storage.model_utils import delete_file_if_needed
 from db_file_storage.model_utils import delete_file
+from mongoengine import Document, fields 
 
-
-class Document(models.Model):
-    name = models.CharField(max_length=255, blank=True)
-    filepath = models.CharField(max_length=255, blank=True)
-    document = models.FileField(upload_to='odc.ConsolePicture/bytes/filename/mimetype', blank=True, null=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    username = models.CharField(max_length=255, blank=True)
-    md5sum = models.CharField(max_length=255, blank=True, editable=False)
+class document(Document):
+    name = fields.StringField(max_length=255)
+    filepath = fields.StringField(max_length=255)
+    document = fields.FileField(upload_to='odc.ConsolePicture/bytes/filename/mimetype', , null=True)
+    uploaded_at = fields.DateTimeField(auto_now_add=True)
+    username = fields.StringField(max_length=255)
+    md5sum = fields.StringField(max_length=255,editable=False)
 
     def save(self, *args, **kwargs):
         delete_file_if_needed(self, 'picture')
@@ -24,24 +23,24 @@ class Document(models.Model):
         delete_file_if_needed(self, 'document')
 
 
-class ConsolePicture(models.Model):
-    bytes = models.TextField()
-    filename = models.CharField(max_length=255)
-    mimetype = models.CharField(max_length=50)
+class ConsolePicture(Document):
+    bytes = fields.StringField()
+    filename = fields.StringField(max_length=255)
+    mimetype = fields.StringField(max_length=50)
 
 
-class Details(models.Model):
-    username = models.CharField(max_length=255, blank=True)
-    in_sync = models.BooleanField(max_length=20, default=False)
-    enc_scheme = models.CharField(max_length=255, default='AES')
+class Details(Document):
+    username = fields.StringField(max_length=255)
+    in_sync = fields.BooleanField(max_length=20, default=False)
+    enc_scheme = fields.StringField(max_length=255, default='AES')
 
 
-class runtimeDetails(models.Model):
-    username = models.CharField(max_length=255, blank=True)
+class runtimeDetails(Document):
+    username = fields.StringField(max_length=255)
     #the name is like <username>_<port_number_assigned> sending this info to client so that user can point specific container allocated
-    ownedContainers = models.CharField(max_length=65535, blank=True)
-    totalOwnedContainers = models.IntegerField(blank=False,default=0)
+    ownedContainers = fields.DictField()
+    totalOwnedContainers = fields.IntField(required=False,default=0)
 
-class wargame_details(models.Model):
-    username = models.CharField(max_length=255, blank=True)
-    owned_wargame_runtime_port = models.CharField(max_length=10, blank=True)
+class wargame_details(Document):
+    username = fields.StringField(max_length=255)
+    owned_wargame_runtime_port = fields.StringField(max_length=10)
