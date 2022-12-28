@@ -15,6 +15,7 @@ green = '\033[92m'
 end_c = '\033[0m'
 
 try:
+    #Here the files object if of io.BufferedReader class,which we pass over the network and work with the same at the python backend
     files = {'document' : open(sys.argv[1], 'rb')}
 except IOError:
     print("file {} not found".format(sys.argv[1]))
