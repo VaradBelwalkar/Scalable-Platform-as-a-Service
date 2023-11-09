@@ -1,6 +1,5 @@
 # On-Demand-Containers
-
-## PLATFORM AS A SERVICE  
+ 
 WHAT IT CAN DO?  
 Provide on-demand containers to the client  
 One command deployment for various applications(web, django-based, nodejs-based)  
